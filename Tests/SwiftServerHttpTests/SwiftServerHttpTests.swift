@@ -11,6 +11,36 @@ import XCTest
 @testable import SwiftServerHttp
 
 class SwiftServerHttpTests: XCTestCase {
+    
+    func testRawGet() {
+        let expectation = self.expectation(description: "Test parsing of raw HTTP GET message")
+        let testRequest = "GET /test HTTP/1.1\r\nUser-Agent: curl/7.18.0 (i486-pc-linux-gnu) libcurl/7.18.0 OpenSSL/0.9.8g zlib/1.2.3.3 libidn/1.1\r\nHost: 0.0.0.0=5000\r\nAccept: */*\r\n\r\n"
+        let data = testRequest.data(using: .utf8)
+
+        let webApp = SimpleResponseCreator { (request, body) -> (reponse: HTTPResponse, responseBody: Data) in
+            XCTAssertEqual(request.method.rawValue, "GET")
+            XCTAssertEqual(request.httpVersion.0, 1)
+            XCTAssertEqual(request.httpVersion.1, 1)
+            XCTAssertEqual(request.headers["User-Agent"][0], "curl/7.18.0 (i486-pc-linux-gnu) libcurl/7.18.0 OpenSSL/0.9.8g zlib/1.2.3.3 libidn/1.1")
+            XCTAssertEqual(request.headers["Host"][0], "0.0.0.0=5000")
+            XCTAssertEqual(request.headers["Accept"][0], "*/*")
+            expectation.fulfill()
+            return (
+                    HTTPResponse(httpVersion: request.httpVersion,
+                                 status: .ok, transferEncoding: .chunked,
+                                 headers: HTTPHeaders([("X-foo", "bar")])),
+                                "OK!".data(using: .utf8)!)
+            
+        }
+        let parser = StreamingParser(webapp: webApp.serve)
+        parser.readStream(data: data!)
+        self.waitForExpectations(timeout: 10) { (error) in
+            if let error = error {
+                XCTFail("\(error)")
+            }
+        }
+    }
+    
     func testResponseOK() {
         let request = HTTPRequest(method: .GET, target:"/echo", httpVersion: (1, 1), headers: HTTPHeaders([("X-foo", "bar")]))
         let resolver = TestResponseResolver(request: request, requestBody: Data())
@@ -353,6 +383,7 @@ class SwiftServerHttpTests: XCTestCase {
     }
     
     static var allTests = [
+        ("testRawGet", testRawGet),
         ("testEcho", testEcho),
         ("testHello", testHello),
         ("testHeaders", testHeaders),
