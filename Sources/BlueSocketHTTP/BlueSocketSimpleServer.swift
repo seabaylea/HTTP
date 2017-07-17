@@ -179,7 +179,7 @@ class ConnectionListenerCollection {
     /// Count of collections
     var count: Int {
         lock.wait()
-        let c = storage.filter { nil != $0.value }.count
+        let c = storage.count
         lock.signal()
         return c
     }
